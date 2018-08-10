@@ -7,6 +7,7 @@ import os
 import shutil
 
 from tekton.cisco import CiscoConfigGen
+from tekton.gobgp import GoBGPConfigGen
 from tekton.graph import NetworkGraph
 
 
@@ -71,7 +72,7 @@ class GNS3Topo(object):
             'idlemax': self.gns3_config.idelmax,
         }
         self.next_console = itertools.count(self.gns3_config.console_start_port)
-        self.config_gen = CiscoConfigGen(self.graph, prefix_map=self.prefix_map)
+        self.config_gen = GoBGPConfigGen(self.graph, prefix_map=self.prefix_map)
 
     def _annotate_node(self, node):
         """
