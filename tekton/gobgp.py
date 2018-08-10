@@ -245,7 +245,11 @@ class GoBGPConfigGen(object):
             config += '   set-next-hop = "%s"' % str(ip)
         elif isinstance(action, ActionASPathPrepend):
             config += '[policy-definitions.statements.actions.bgp-actions.set-as-path-prepend]\n'
-            config += '   as = "%s"' % ' '.join([str(x) for x in action.value])
+            # GoBGP doesn't allow prepending of multiple unique ASNs, so we 
+            # always prepend the first ASN in the list as many types as there
+            # are ASNs to prepend
+            config += '   as = "%s"\n' % str(action.value[0])
+            config +='    repeat-n = %d' % len(action.value)
         elif isinstance(action, ActionString):
             raise ValueError('Unhandled action type %s' % action.value)
             #config = '%s' % action.value
@@ -263,8 +267,8 @@ class GoBGPConfigGen(object):
                 continue
             no = line.lineno
             access = line.access.value if hasattr(line.access, 'value') else Access.permit
-            config += ' [[policy-defintions.statements]]\n'
-            config += '  name = "%s"\n' % no
+            config += ' [[policy-definitions.statements]]\n'
+            config += '  name = "%s_%s"\n' % (name, no)
             if name in route_map_neighbor:
                 config += '  [policy-definitions.statements.conditions.match-neighbor-set]\n'
                 config += '   neighbor-set = "%s"\n' % route_map_neighbor[name]
@@ -272,10 +276,10 @@ class GoBGPConfigGen(object):
             for match in line.matches:
                 config += '  %s\n' % self.gen_route_map_match(node, match)
             if access == 'permit':
-                config += '  [policy-defintions.statements.actions]\n'
+                config += '  [policy-definitions.statements.actions]\n'
                 config += '   route-disposition = "accept-route"\n'
             elif access == 'deny':
-                config += '  [policy-defintions.statements.actions]\n'
+                config += '  [policy-definitions.statements.actions]\n'
                 config += '   route-disposition = "reject-route"\n'
             for action in line.actions:
                 config += '  %s\n' % self.gen_route_map_action(action)
@@ -308,6 +312,13 @@ class GoBGPConfigGen(object):
             if is_symbolic(router_id):
                 router_id = router_id.get_value()
             config += ' router-id = "%s"\n' % ip_address(router_id)
+        # Use IP address for 1st iface if no id is specified
+        else:
+            for neighbor in self.g.neighbors(node):
+                iface = self.g.get_edge_iface(node, neighbor)
+                addr = self.g.get_iface_addr(node, iface)
+                config += ' router-id = "%s"\n' % addr.ip
+                break
 
         import_maps = []
         export_maps = []
@@ -323,7 +334,8 @@ class GoBGPConfigGen(object):
                 assert export_map not in route_map_neighbor
                 route_map_neighbor[export_map] = neighbor
 
-        config += ' [global.apply-policy.config]\n'
+        if len(import_maps) > 0 or len(export_maps) > 0:
+            config += ' [global.apply-policy.config]\n'
         if len(import_maps) > 0:
             config += '  import-policy-list = ["%s"]\n' % '","'.join(import_maps)
         if len(export_maps) > 0:
@@ -469,7 +481,7 @@ class GoBGPConfigGen(object):
         config += '!\n'
         return config
 
-    def gen_router_config(self, node):
+    def gen_router_config(self, node, shortnode=None):
         """
         Get the router configs
         :param node: router
@@ -480,10 +492,12 @@ class GoBGPConfigGen(object):
         self.gen_external_announcements(node)
 
         route_map_neighbor = {}
+        if shortnode is None:
+            shortnode = node
 
         gobgp = "# %s\n\n" % node
         gobgp += self.gen_global_config(node, route_map_neighbor)
-        gobgp += self.gen_zebra(node)
+        gobgp += self.gen_zebra(shortnode)
         gobgp += self.gen_bmp(node)
         gobgp += self.gen_all_neighbors(node)
         gobgp += self.gen_all_communities_lists(node)
@@ -491,7 +505,7 @@ class GoBGPConfigGen(object):
         gobgp += self.gen_all_as_path_lists(node)
         gobgp += self.gen_all_route_maps(node, route_map_neighbor)
 
-        zebra = self.gen_zebra_preamble(node)
+        zebra = self.gen_zebra_preamble(shortnode)
         zebra += self.gen_all_announcements(node)
 
         return (gobgp, zebra)

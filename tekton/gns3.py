@@ -117,7 +117,7 @@ class GNS3Topo(object):
         ifaces = {}
         # Output all nodes
         for node in sorted(list(self.graph.routers_iter())):
-            topo += 'router %s ' % node
+            topo += 'router %s ' % self.shortnodes[node]
             ifaces[node] = {}
             for i,neighbor in enumerate(self.graph.neighbors(node)):
                 iface = self.graph.get_edge_iface(node, neighbor)
@@ -136,12 +136,12 @@ class GNS3Topo(object):
                 sethface = ifaces[node][siface]
                 diface = self.graph.get_edge_iface(neighbor, node)
                 dethface = ifaces[neighbor][diface]
-                topo += 'link %s:%s %s:%s\n' % (node, sethface, neighbor, dethface)
+                topo += 'link %s:%s %s:%s\n' % (self.shortnodes[node], sethface, self.shortnodes[neighbor], dethface)
         return topo
 
-    def gen_router_config(self, node):
+    def gen_router_config(self, node, shortnode=None):
         """Get the config for a give router"""
-        return self.config_gen.gen_router_config(node)
+        return self.config_gen.gen_router_config(node, shortnode)
 
     def write_configs(self, out_folder):
         """Generate the routers configs"""
@@ -154,6 +154,10 @@ class GNS3Topo(object):
 
         if isinstance(self.config_gen, GoBGPConfigGen):
             topo_file = os.path.join(out_folder, 'topo')
+            self.shortnodes = {}
+            for i,node in enumerate(sorted(list(self.graph.routers_iter()))):
+                self.shortnodes[node] = 'r%d' % i
+                self.shortnodes[node] = node[:10]
             topo_file_str = self.get_mininet_topo()
             configs_folder = out_folder
         else:
@@ -167,11 +171,12 @@ class GNS3Topo(object):
             os.mkdir(configs_folder)
         for node in sorted(list(self.graph.routers_iter())):
             if isinstance(self.config_gen, GoBGPConfigGen):
-                gobgpcfg, zebracfg = self.gen_router_config(node)
-                gobgpcfg_file = os.path.join(configs_folder, "%s.gobgp" % node)
+                shortnode = self.shortnodes[node]
+                gobgpcfg, zebracfg = self.gen_router_config(node, shortnode)
+                gobgpcfg_file = os.path.join(configs_folder, "%s.gobgp" % shortnode)
                 with open(gobgpcfg_file, 'w') as fhandle:
                     fhandle.write(gobgpcfg)
-                zebracfg_file = os.path.join(configs_folder, "%s.zebra" % node)
+                zebracfg_file = os.path.join(configs_folder, "%s.zebra" % shortnode)
                 with open(zebracfg_file, 'w') as fhandle:
                     fhandle.write(zebracfg)
             else:
