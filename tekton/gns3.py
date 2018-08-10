@@ -111,6 +111,34 @@ class GNS3Topo(object):
                 topo += "\t\t%s = %s %s\n" % (siface, neighbor, diface)
         return topo
 
+    def get_mininet_topo(self):
+        """Returns the contents of topo"""
+        topo = ''
+        ifaces = {}
+        # Output all nodes
+        for node in sorted(list(self.graph.routers_iter())):
+            topo += 'router %s ' % node
+            ifaces[node] = {}
+            for i,neighbor in enumerate(self.graph.neighbors(node)):
+                iface = self.graph.get_edge_iface(node, neighbor)
+                addr = self.graph.get_iface_addr(node, iface)
+                ethface = 'eth%d' % i
+                topo += '%s:%s ' % (ethface, addr)
+                ifaces[node][iface] = ethface
+            topo += '\n'
+        # Output all links
+        for node in sorted(list(self.graph.routers_iter())):
+            for neighbor in self.graph.neighbors(node):
+                # Avoid specifying links in both directions
+                if neighbor < node:
+                    continue
+                siface = self.graph.get_edge_iface(node, neighbor)
+                sethface = ifaces[node][siface]
+                diface = self.graph.get_edge_iface(neighbor, node)
+                dethface = ifaces[neighbor][diface]
+                topo += 'link %s:%s %s:%s\n' % (node, sethface, neighbor, dethface)
+        return topo
+
     def gen_router_config(self, node):
         """Get the config for a give router"""
         return self.config_gen.gen_router_config(node)
@@ -124,15 +152,30 @@ class GNS3Topo(object):
         shutil.rmtree(out_folder, True)
         os.mkdir(out_folder)
 
-        topo_file = os.path.join(out_folder, 'topo.ini')
-        topo_file_str = self.get_gns3_topo()
+        if isinstance(self.config_gen, GoBGPConfigGen):
+            topo_file = os.path.join(out_folder, 'topo')
+            topo_file_str = self.get_mininet_topo()
+            configs_folder = out_folder
+        else:
+            topo_file = os.path.join(out_folder, 'topo.net')
+            topo_file_str = self.get_gns3_topo()
+            configs_folder = os.path.join(out_folder, 'configs')
         with open(topo_file, 'w') as fhandle:
             fhandle.write(topo_file_str)
 
-        configs_folder = os.path.join(out_folder, 'configs')
-        os.mkdir(configs_folder)
+        if not os.path.isdir(configs_folder):
+            os.mkdir(configs_folder)
         for node in sorted(list(self.graph.routers_iter())):
-            cfg = self.gen_router_config(node)
-            cfg_file = os.path.join(configs_folder, "%s.cfg" % node)
-            with open(cfg_file, 'w') as fhandle:
-                fhandle.write(cfg)
+            if isinstance(self.config_gen, GoBGPConfigGen):
+                gobgpcfg, zebracfg = self.gen_router_config(node)
+                gobgpcfg_file = os.path.join(configs_folder, "%s.gobgp" % node)
+                with open(gobgpcfg_file, 'w') as fhandle:
+                    fhandle.write(gobgpcfg)
+                zebracfg_file = os.path.join(configs_folder, "%s.zebra" % node)
+                with open(zebracfg_file, 'w') as fhandle:
+                    fhandle.write(zebracfg)
+            else:
+                cfg = self.gen_router_config(node)
+                cfg_file = os.path.join(configs_folder, "%s.cfg" % node)
+                with open(cfg_file, 'w') as fhandle:
+                    fhandle.write(cfg)

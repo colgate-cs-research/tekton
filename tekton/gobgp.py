@@ -479,13 +479,9 @@ class GoBGPConfigGen(object):
         #if self.g.is_peer(node):
         self.gen_external_announcements(node)
 
-        configs = "# %s\n\n" % node
-        topo = self.gen_all_interface_configs(node)
-        configs += topo + '\n'
-        
         route_map_neighbor = {}
 
-        gobgp = '\n'
+        gobgp = "# %s\n\n" % node
         gobgp += self.gen_global_config(node, route_map_neighbor)
         gobgp += self.gen_zebra(node)
         gobgp += self.gen_bmp(node)
@@ -494,11 +490,8 @@ class GoBGPConfigGen(object):
         gobgp += self.gen_all_ip_prefixes(node)
         gobgp += self.gen_all_as_path_lists(node)
         gobgp += self.gen_all_route_maps(node, route_map_neighbor)
-        configs += gobgp + '\n'
 
-        zebra = '\n'
-        zebra += self.gen_zebra_preamble(node)
+        zebra = self.gen_zebra_preamble(node)
         zebra += self.gen_all_announcements(node)
-        configs += zebra + '\n'
 
-        return configs
+        return (gobgp, zebra)
