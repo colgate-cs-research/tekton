@@ -72,6 +72,7 @@ class GNS3Topo(object):
             'idlemax': self.gns3_config.idelmax,
         }
         self.next_console = itertools.count(self.gns3_config.console_start_port)
+        self.config_gen = CiscoConfigGen(self.graph, prefix_map=self.prefix_map)
         self.config_gen = GoBGPConfigGen(self.graph, prefix_map=self.prefix_map)
 
     def _annotate_node(self, node):
@@ -141,7 +142,10 @@ class GNS3Topo(object):
 
     def gen_router_config(self, node, shortnode=None):
         """Get the config for a give router"""
-        return self.config_gen.gen_router_config(node, shortnode)
+        if isinstance(self.config_gen, GoBGPConfigGen):
+            return self.config_gen.gen_router_config(node, shortnode)
+        else:
+            return self.config_gen.gen_router_config(node)
 
     def write_configs(self, out_folder):
         """Generate the routers configs"""
@@ -156,7 +160,6 @@ class GNS3Topo(object):
             topo_file = os.path.join(out_folder, 'topo')
             self.shortnodes = {}
             for i,node in enumerate(sorted(list(self.graph.routers_iter()))):
-                self.shortnodes[node] = 'r%d' % i
                 self.shortnodes[node] = node[:10]
             topo_file_str = self.get_mininet_topo()
             configs_folder = out_folder
