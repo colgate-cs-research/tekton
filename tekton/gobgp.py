@@ -411,6 +411,10 @@ class GoBGPConfigGen(object):
             config += ' [neighbors.config]\n'
             config += '  peer-as = %s\n' % neighbor_asn
             config += '  neighbor-address = "%s"\n' % neighboraddr.ip
+            config += ' [neighbors.timers.config]\n'
+            config += '  connect-retry = 5\n'
+            config += '  hold-time = 6\n'
+            config += '  keepalive-interval = 2\n'
             # FIXME: required?
             #if update_source:
             #    config += " neighbor %s update-source %s\n" % (neighboraddr.ip, source_iface)
@@ -421,6 +425,7 @@ class GoBGPConfigGen(object):
                 config += '\n[[defined-sets.neighbor-sets]]\n'
                 config += ' neighbor-set-name = "%s"\n' % neighbor
                 config += ' neighbor-info-list = ["%s"]\n' % neighboraddr.ip
+            config += '\n'
         return config
 
     def gen_external_announcements(self, node):
