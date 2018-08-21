@@ -64,7 +64,7 @@ class ConnectedSyn(object):
         self.network_graph = network_graph
         self.full = full
         if not start_net:
-            start_net = ip_network(u'10.0.0.0/31')
+            start_net = ip_network(u'10.0.0.2/31')
         assert isinstance(start_net, (IPv4Network, IPv6Network))
         self._start_net = start_net
         self._next_net = self._start_net
