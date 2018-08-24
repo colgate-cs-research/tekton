@@ -207,7 +207,12 @@ class GoBGPConfigGen(object):
             config += '   match-set-options = "any"'
         elif isinstance(match, MatchNextHop):
             next_hop = match.match
-            parsed = next_hop.split('-') if isinstance(next_hop, basestring) else None
+	    parsed = None
+            if isinstance(next_hop, basestring):
+                if '__DASH__' in next_hop:
+                    parsed = next_hop.split('_DASH_')
+                else:
+                    parsed = next_hop.split('-')
             if parsed and self.g.has_node(parsed[0]):
                 router = parsed[0]
                 iface = '/'.join(parsed[1:])
@@ -229,8 +234,7 @@ class GoBGPConfigGen(object):
             comms = '","'.join([c.value for c in action.communities])
             config += '[policy-definitions.statements.actions.bgp-actions.set-community]\n'
             if action.additive:
-                config += ' additive'
-                contig += '   options = "add"\n'
+                config += '   options = "add"\n'
             config += '[policy-definitions.statements.actions.bgp-actions.set-community.set-community-method]\n'
             config += '     communities-lists = ["%s"]' % comms
         elif isinstance(action, ActionSetNextHop):
