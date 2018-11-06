@@ -48,6 +48,7 @@ class GoBGPConfigGen(object):
         self.nettype = (IPv4Network, IPv6Network)
         self._next_announced_prefix = int(ip_address(u'128.0.0.0'))
         self._next_as_paths = {}
+        self._empty_community_lists = {}
         for node in self.g.routers_iter():
             self._next_as_paths[node] = itertools.count(1)
 
@@ -62,20 +63,27 @@ class GoBGPConfigGen(object):
         self.prefix_map[prefix] = net
         return net
 
-    def gen_community_list(self, community_list):
+    def gen_community_list(self, node, community_list):
         """
         Generate config lines for community list
         :param community_list:
         :return: configs string
         """
         assert isinstance(community_list, CommunityList)
-        config = '[[defined-sets.bgp-defined-sets.community-sets]]\n'
+        config =''
         list_id = community_list.list_id
-        config += ' community-set-name = "%d"\n' % list_id
         # FIXME: Handle access
         access = community_list.access.value
-        communities = '","'.join([c.value for c in community_list.communities if not is_empty(c)])
-        config += ' community-list = ["%s"]\n' % communities
+	communities = [c.value for c in community_list.communities if not is_empty(c)]
+	if communities:
+	    communities = '","'.join(communities)
+            config = '[[defined-sets.bgp-defined-sets.community-sets]]\n'
+            config += ' community-set-name = "%d"\n' % list_id
+	    config += ' community-list = ["%s"]\n' % communities
+	else:
+            if node not in self._empty_community_lists:
+                self._empty_community_lists[node] = []
+            self._empty_community_lists[node].append(list_id)
         return config
 
     def gen_ip_prefix_list(self, node, prefix_list):
@@ -147,7 +155,7 @@ class GoBGPConfigGen(object):
         comm_lists = self.g.get_bgp_communities_list(node)
         for num in comm_lists:
             comm_list = comm_lists[num]
-            config += self.gen_community_list(comm_list)
+            config += self.gen_community_list(node, comm_list)
             config += "\n"
         return config
 
@@ -181,6 +189,9 @@ class GoBGPConfigGen(object):
     def gen_route_map_match(self, node, match):
         config = ''
         if isinstance(match, MatchCommunitiesList):
+	    if match.match.list_id in self._empty_community_lists.get(node, []):
+                err = "Community list id {} is used in a match but it's empty".format(match.match.list_id)
+                assert False, err
             config += '[policy-definitions.statements.conditions.bgp-conditions.match-community-set]\n'
             config += '   community-set = "%d"\n' % match.match.list_id
             config += '   match-set-options = "any"'
@@ -236,7 +247,7 @@ class GoBGPConfigGen(object):
             if action.additive:
                 config += '   options = "add"\n'
             config += '[policy-definitions.statements.actions.bgp-actions.set-community.set-community-method]\n'
-            config += '     communities-lists = ["%s"]' % comms
+            config += '     communities-list = ["%s"]' % comms
         elif isinstance(action, ActionSetNextHop):
             if '-' in action.value:
                 router = action.value.split('-')[0]
