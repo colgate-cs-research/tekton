@@ -160,7 +160,13 @@ class GNS3Topo(object):
             topo_file = os.path.join(out_folder, 'topo')
             self.shortnodes = {}
             for i,node in enumerate(sorted(list(self.graph.routers_iter()))):
-                self.shortnodes[node] = node[:10]
+                shortname = node.replace('TT','')
+                if "ID" in shortname:
+                    idnum = shortname[shortname.index("ID")+2:]
+                    shortname = shortname[:10-len(idnum)] + idnum
+                else:
+                    shortname = shortname[:10]
+                self.shortnodes[node] = shortname
             topo_file_str = self.get_mininet_topo()
             configs_folder = out_folder
         else:
